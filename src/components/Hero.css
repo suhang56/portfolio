@@ -7,6 +7,31 @@
   padding: 6rem 2rem 4rem;
   max-width: 1100px;
   margin: 0 auto;
+  position: relative;
+}
+
+/* Background photo — when bg.jpg is present */
+.hero.has-bg {
+  max-width: 100%;
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+}
+
+.hero.has-bg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 10, 18, 0.72);
+  backdrop-filter: blur(2px);
+}
+
+.hero.has-bg .hero-content,
+.hero.has-bg .hero-avatar {
+  position: relative;
+  z-index: 1;
+  max-width: 550px;
+  margin: 0 auto;
 }
 
 .hero-greeting {

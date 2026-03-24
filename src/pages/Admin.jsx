@@ -38,6 +38,44 @@ function slugify(title) {
   return title.toLowerCase().replace(/[^\w\s-]/g, "").trim().replace(/\s+/g, "-");
 }
 
+// Get SHA of an existing file (returns null if file doesn't exist yet)
+async function ghSha(token, path) {
+  const res = await fetch(`${API}/repos/${REPO}/contents/${path}`, {
+    headers: { Authorization: `token ${token}`, Accept: "application/vnd.github.v3+json" },
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.sha;
+}
+
+// Upload a binary file (image / audio) to the repo
+function uploadAsset(token, repoPath, file, message) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const base64 = e.target.result.split(",")[1];
+      try {
+        const sha = await ghSha(token, repoPath);
+        const body = { message, content: base64 };
+        if (sha) body.sha = sha;
+        const res = await fetch(`${API}/repos/${REPO}/contents/${repoPath}`, {
+          method: "PUT",
+          headers: {
+            Authorization: `token ${token}`,
+            "Content-Type": "application/json",
+            Accept: "application/vnd.github.v3+json",
+          },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) { const err = await res.json(); reject(new Error(err.message)); return; }
+        resolve(await res.json());
+      } catch (err) { reject(err); }
+    };
+    reader.onerror = () => reject(new Error("Failed to read file"));
+    reader.readAsDataURL(file);
+  });
+}
+
 // ── Admin App ───────────────────────────────────────────────────────────────
 
 export default function Admin() {
@@ -181,6 +219,7 @@ export default function Admin() {
           <button className={view === "posts" ? "active" : ""} onClick={() => { setView("posts"); setEditingPost(null); }}>📝 Blog Posts</button>
           <button className={view === "social" ? "active" : ""} onClick={() => setView("social")}>🔗 Social Links</button>
           <button className={view === "profile" ? "active" : ""} onClick={() => setView("profile")}>👤 Profile</button>
+          <button className={view === "assets" ? "active" : ""} onClick={() => setView("assets")}>🖼️ Assets</button>
         </nav>
         <button className="admin-logout" onClick={logout}>Sign Out</button>
       </aside>
@@ -227,6 +266,11 @@ export default function Admin() {
         {/* ── Profile ── */}
         {view === "profile" && (
           <ProfileEditor profile={profile} onChange={setProfile} onSave={saveProfile} saving={saving} />
+        )}
+
+        {/* ── Assets ── */}
+        {view === "assets" && (
+          <AssetsManager token={token} onFlash={flash} onError={setError} />
         )}
       </main>
     </div>
@@ -362,6 +406,115 @@ function ProfileEditor({ profile, onChange, onSave, saving }) {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function AssetsManager({ token, onFlash, onError }) {
+  const [uploading, setUploading] = useState({});
+
+  const ts = Date.now();
+
+  async function handleUpload(file, repoPath, label) {
+    if (!file) return;
+    setUploading(u => ({ ...u, [repoPath]: true }));
+    onError("");
+    try {
+      await uploadAsset(token, repoPath, file, `Upload ${label}`);
+      onFlash(`${label} uploaded! Site will redeploy in ~1 minute.`);
+    } catch (e) {
+      onError(e.message);
+    } finally {
+      setUploading(u => ({ ...u, [repoPath]: false }));
+    }
+  }
+
+  return (
+    <div className="admin-section">
+      <h2 className="admin-section-title">Assets</h2>
+      <p className="admin-empty" style={{ marginBottom: "2rem" }}>
+        Upload files here. They go live after Vercel redeploys (~1 min).
+      </p>
+
+      <div className="admin-assets-grid">
+
+        {/* Avatar */}
+        <div className="admin-asset-card">
+          <div className="admin-asset-preview">
+            <img src={`/avatar.jpg?v=${ts}`} alt="Avatar" onError={e => { e.target.style.display = "none"; }} />
+            <span className="admin-asset-label">avatar.jpg</span>
+          </div>
+          <p className="admin-asset-desc">Your profile photo. Shown on the homepage.</p>
+          <AssetUploader
+            accept="image/*"
+            loading={uploading["public/avatar.jpg"]}
+            onFile={f => handleUpload(f, "public/avatar.jpg", "Avatar")}
+          />
+        </div>
+
+        {/* Background photo */}
+        <div className="admin-asset-card">
+          <div className="admin-asset-preview">
+            <img src={`/bg.jpg?v=${ts}`} alt="Background" onError={e => { e.target.style.display = "none"; }} />
+            <span className="admin-asset-label">bg.jpg</span>
+          </div>
+          <p className="admin-asset-desc">Hero background photo. Shown behind your intro.</p>
+          <AssetUploader
+            accept="image/*"
+            loading={uploading["public/bg.jpg"]}
+            onFile={f => handleUpload(f, "public/bg.jpg", "Background photo")}
+          />
+        </div>
+
+        {/* Music */}
+        <div className="admin-asset-card">
+          <div className="admin-asset-preview audio-preview">
+            <span className="admin-asset-music-icon">♪</span>
+            <span className="admin-asset-label">music.mp3</span>
+          </div>
+          <p className="admin-asset-desc">Background music played on the site.</p>
+          <AssetUploader
+            accept="audio/*"
+            loading={uploading["public/music.mp3"]}
+            onFile={f => handleUpload(f, "public/music.mp3", "Background music")}
+          />
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+function AssetUploader({ accept, loading, onFile }) {
+  const [dragging, setDragging] = useState(false);
+  const inputRef = useState(null);
+
+  function handleDrop(e) {
+    e.preventDefault();
+    setDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) onFile(file);
+  }
+
+  return (
+    <div
+      className={`admin-dropzone ${dragging ? "dragging" : ""} ${loading ? "loading" : ""}`}
+      onDragOver={e => { e.preventDefault(); setDragging(true); }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={handleDrop}
+      onClick={() => document.getElementById(`file-${accept}`).click()}
+    >
+      <input
+        id={`file-${accept}`}
+        type="file"
+        accept={accept}
+        style={{ display: "none" }}
+        onChange={e => { if (e.target.files[0]) onFile(e.target.files[0]); e.target.value = ""; }}
+      />
+      {loading
+        ? <><div className="admin-spinner small" /> Uploading…</>
+        : <><span>⬆</span> Click or drag to upload</>
+      }
     </div>
   );
 }

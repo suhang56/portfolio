@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import profile from "../data/profile.json";
 import socialsData from "../data/social.json";
 import { SocialLink } from "./SocialIcons";
@@ -6,9 +6,17 @@ import "./Hero.css";
 
 export default function Hero() {
   const [imgError, setImgError] = useState(false);
+  const [hasBg, setHasBg] = useState(false);
+
+  useEffect(() => {
+    const img = new Image();
+    img.onload = () => setHasBg(true);
+    img.onerror = () => setHasBg(false);
+    img.src = "/bg.jpg";
+  }, []);
 
   return (
-    <section className="hero">
+    <section className={`hero ${hasBg ? "has-bg" : ""}`} style={hasBg ? { backgroundImage: "url(/bg.jpg)" } : {}}>
       <div className="hero-content">
         <p className="hero-greeting">Hi, I'm</p>
         <h1 className="hero-name">{profile.name}</h1>
