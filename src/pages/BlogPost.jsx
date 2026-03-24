@@ -1,5 +1,5 @@
 import { useParams, Link, Navigate } from "react-router-dom";
-import { posts } from "../data/posts";
+import posts from "../data/posts.json";
 import "./BlogPost.css";
 
 export default function BlogPost() {
@@ -26,7 +26,6 @@ export default function BlogPost() {
           {post.content.split("\n").map((line, i) => {
             if (line.startsWith("## ")) return <h2 key={i}>{line.slice(3)}</h2>;
             if (line.startsWith("# ")) return <h1 key={i}>{line.slice(2)}</h1>;
-            if (line.startsWith("```")) return null;
             if (line.trim() === "") return <br key={i} />;
             return <p key={i}>{line}</p>;
           })}

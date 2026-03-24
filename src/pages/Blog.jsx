@@ -1,15 +1,17 @@
 import { Link } from "react-router-dom";
-import { posts } from "../data/posts";
+import posts from "../data/posts.json";
 import "./Blog.css";
 
 export default function Blog() {
+  const sorted = [...posts].sort((a, b) => new Date(b.date) - new Date(a.date));
+
   return (
     <main className="blog-page">
       <div className="section-inner">
         <h1 className="page-title">Japan Concert Diary 🇯🇵</h1>
         <p className="page-subtitle">Trips, shows, and memories from across Japan.</p>
         <div className="posts-list">
-          {posts.map((post) => (
+          {sorted.map((post) => (
             <Link to={`/blog/${post.slug}`} key={post.id} className="post-card">
               <div className="post-meta">
                 <span className="post-date">{new Date(post.date).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</span>
